@@ -1,0 +1,108 @@
+---
+title: "final"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+data_train <- read.table("./ISyE7406train.csv", sep=",")
+```
+
+```{r}
+X1 <- data_train[,1]
+X2 <- data_train[,2]
+```
+
+```{r}
+muhat <- apply(data_train[,3:202], 1, mean)
+Vhat  <- apply(data_train[,3:202], 1, var)
+```
+
+```{r}
+data0 = data.frame(X1 = X1, X2=X2, muhat = muhat, Vhat = Vhat)
+```
+
+```{r}
+plot(X1, muhat)
+plot(X2, muhat)
+```
+
+```{r}
+par(mfrow = c(1,3))
+s = 1
+for (i in c(1:9)){
+  e = s + 99
+  plot(X2[s:e], muhat[s:e])
+  s = s + 100
+}
+```
+
+```{r}
+par(mfrow = c(1,3))
+x2 = 0.0
+for (i in c(1:9)){
+  x2 = X2[i]
+  temp = data0[which(data0$X2 == x2), ]
+  plot(temp$X1, temp$muhat)
+}
+```
+
+```{r}
+model_X1 = lm(muhat~X1+X2, data = data_train)
+summary(model_X1)
+```
+
+```{r}
+mean(model_X1$residuals^2)
+```
+
+```{r}
+library(caret)
+control = trainControl(method = 'cv', number=10)
+model2 = train(muhat~X1+X2, data0,
+               method='knn',
+               trControl = control,
+               tuneLength = 20,
+               metric = "RMSE")
+```
+
+```{r}
+pred = predict(model2, data0)
+mean((pred - muhat)^2)
+```
+
+```{r}
+set.seed(1000)
+n1 = 2000
+n = 10000
+B=100
+TEALL = 0
+for (b in 1:B){
+  flag = sort(sample(1:n, n1))
+  train_temp = data0[-flag,]
+  test_temp = data0[flag,]
+  control = trainControl(method = 'cv', number=10)
+  model2 = train(muhat~X1+X2, train_temp,
+               method='knn',
+               trControl = control,
+               tuneLength = 20,
+               metric = "RMSE")
+  pred = predict(model2, test_temp)
+  te1 = mean((pred - test_temp$muhat)^2)
+  TEALL = TEALL + te1
+}
+
+```
+
+```{r}
+library(neuralnet)
+m <- model.matrix(muhat~X1+X2, data=data0)
+nn = neuralnet::neuralnet(muhat~X1+X2, data = m, hidden = c(10,4,4),threshold = 0.04, linear.output = T, stepmax = 1e7)
+pr.nn = compute(nn, data0[, c(1,2)])
+pred = pr.nn$net.result
+mse = mean((pred - data0$muhat)^2)
+```
+
